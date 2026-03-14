@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>收款演示 - 创建订单</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: #f5f5f5;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      .card {
+        background: #fff;
+        padding: 24px 28px;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+        max-width: 420px;
+        width: 100%;
+      }
+      h1 {
+        margin-top: 0;
+        font-size: 20px;
+      }
+      label {
+        display: block;
+        margin: 12px 0 4px;
+        font-size: 14px;
+      }
+      input, textarea, select, button {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid #d4d4d8;
+        font-size: 14px;
+      }
+      button {
+        margin-top: 16px;
+        background: #2563eb;
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        font-weight: 500;
+      }
+      button:hover {
+        background: #1d4ed8;
+      }
+      .tip {
+        font-size: 12px;
+        color: #6b7280;
+        margin-top: 4px;
+      }
+      .result {
+        margin-top: 12px;
+        font-size: 13px;
+      }
+      .result a {
+        color: #2563eb;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>创建收款订单</h1>
+      <label>金额（单位：分，例如 100 表示 1 元）</label>
+      <input id="amount" type="number" min="1" value="100" />
+      <label>币种</label>
+      <select id="currency">
+        <option value="cny">CNY</option>
+        <option value="usd">USD</option>
+        <option value="eur">EUR</option>
+      </select>
+      <label>描述</label>
+      <textarea id="description" rows="2" placeholder="例如：测试收款订单"></textarea>
+      <div class="tip">创建后可选择 Stripe（万事达卡等）或万里汇支付。</div>
+      <button id="createBtn">创建订单</button>
+      <div class="result" id="result"></div>
+    </div>
+    <script>
+      const btn = document.getElementById('createBtn');
+      const resultEl = document.getElementById('result');
+
+      btn.addEventListener('click', async () => {
+        resultEl.textContent = '正在创建订单...';
+        const amount = parseInt(document.getElementById('amount').value, 10);
+        const currency = document.getElementById('currency').value;
+        const description = document.getElementById('description').value;
+
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount, currency, description })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          resultEl.textContent = data.error || '创建失败';
+          return;
+        }
+
+        const payUrl = `/pay.html?orderId=${encodeURIComponent(data.id)}`;
+        resultEl.innerHTML = `订单已创建，ID: ${data.id} <br />
+          <a href="${payUrl}">Stripe 支付（万事达卡等）</a> &nbsp;|&nbsp;
+          <a href="#" data-order-id="${data.id}" id="wfPayLink">万里汇支付</a>`;
+        document.getElementById('wfPayLink').addEventListener('click', async (e) => {
+          e.preventDefault();
+          const id = e.target.getAttribute('data-order-id');
+          try {
+            const r = await fetch('/api/payments/worldfirst/create', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orderId: id })
+            });
+            const d = await r.json();
+            if (d.redirectUrl) window.location.href = d.redirectUrl;
+            else resultEl.innerHTML += '<br /><span style="color:#dc2626">' + (d.error || '万里汇创建失败') + '</span>';
+          } catch (err) {
+            resultEl.innerHTML += '<br /><span style="color:#dc2626">请求失败</span>';
+          }
+        });
+      });
+    </script>
+  </body>
+  </html>
+
