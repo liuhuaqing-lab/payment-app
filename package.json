@@ -1,0 +1,20 @@
+{
+  "name": "payment-mastercard-app",
+  "version": "1.0.0",
+  "description": "Simple payment collection app with Mastercard support via Stripe (example gateway).",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "sqlite3": "^5.1.7",
+    "stripe": "^16.6.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}
