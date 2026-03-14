@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>支付结果</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: #f5f5f5;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      .card {
+        background: #fff;
+        padding: 24px 28px;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+        max-width: 420px;
+        width: 100%;
+        text-align: center;
+      }
+      h1 { font-size: 20px; margin-top: 0; }
+      .status { font-size: 18px; margin: 12px 0; font-weight: 500; }
+      .status.success { color: #16a34a; }
+      .status.pending { color: #ca8a04; }
+      .status.fail { color: #dc2626; }
+      .orderId { font-size: 13px; color: #6b7280; margin-top: 8px; }
+      a { color: #2563eb; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>支付结果</h1>
+      <div class="status" id="status">查询中…</div>
+      <div class="orderId" id="orderId"></div>
+      <p style="margin-top: 16px;"><a href="/">返回首页</a></p>
+    </div>
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const orderId = params.get('orderId');
+      const provider = params.get('provider') || '';
+      const statusEl = document.getElementById('status');
+      const orderIdEl = document.getElementById('orderId');
+
+      if (!orderId) {
+        statusEl.textContent = '缺少订单号';
+        statusEl.className = 'status fail';
+      } else {
+        orderIdEl.textContent = '订单号：' + orderId + (provider ? '（' + provider + '）' : '');
+        fetch('/api/orders/' + orderId)
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.error) {
+              statusEl.textContent = data.error;
+              statusEl.className = 'status fail';
+              return;
+            }
+            if (data.status === 'paid') {
+              statusEl.textContent = '支付成功';
+              statusEl.className = 'status success';
+            } else if (data.status === 'pending') {
+              statusEl.textContent = '支付处理中或未完成';
+              statusEl.className = 'status pending';
+            } else {
+              statusEl.textContent = '状态：' + (data.status || '未知');
+              statusEl.className = 'status';
+            }
+          })
+          .catch(() => {
+            statusEl.textContent = '查询失败';
+            statusEl.className = 'status fail';
+          });
+      }
+    </script>
+  </body>
+  </html>
