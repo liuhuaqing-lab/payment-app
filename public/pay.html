@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>订单支付 - 万事达卡示例</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: #0f172a;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      .card {
+        background: #020617;
+        padding: 24px 28px;
+        border-radius: 16px;
+        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.7);
+        max-width: 420px;
+        width: 100%;
+        color: #e5e7eb;
+        position: relative;
+        overflow: hidden;
+      }
+      .card::before {
+        content: '';
+        position: absolute;
+        inset: -40%;
+        background: radial-gradient(circle at top left, rgba(59, 130, 246, 0.35), transparent 55%),
+                    radial-gradient(circle at bottom right, rgba(248, 250, 252, 0.4), transparent 55%);
+        opacity: 0.9;
+      }
+      .inner {
+        position: relative;
+        z-index: 1;
+      }
+      h1 {
+        margin-top: 0;
+        font-size: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .badge {
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.5);
+      }
+      .field {
+        margin-top: 10px;
+        font-size: 13px;
+      }
+      .label {
+        color: #9ca3af;
+        font-size: 12px;
+      }
+      #card-element {
+        margin-top: 8px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(148, 163, 184, 0.6);
+      }
+      button {
+        margin-top: 18px;
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 999px;
+        border: none;
+        background: linear-gradient(to right, #22c55e, #16a34a);
+        color: #0f172a;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .tip {
+        margin-top: 8px;
+        font-size: 11px;
+        color: #9ca3af;
+      }
+      .status {
+        margin-top: 10px;
+        font-size: 13px;
+        min-height: 18px;
+      }
+      .success {
+        color: #bbf7d0;
+      }
+      .error {
+        color: #fecaca;
+      }
+    </style>
+    <script src="https://js.stripe.com/v3/"></script>
+  </head>
+  <body>
+    <div class="card">
+      <div class="inner">
+        <h1>
+          订单支付
+          <span class="badge">支持万事达卡</span>
+        </h1>
+        <div class="field">
+          <div class="label">订单 ID</div>
+          <div id="orderId"></div>
+        </div>
+        <div class="field">
+          <div class="label">金额</div>
+          <div id="amount"></div>
+        </div>
+        <div class="field">
+          <div class="label">描述</div>
+          <div id="description"></div>
+        </div>
+        <div class="field">
+          <div class="label">银行卡信息（示例环境，可用测试万事达卡）</div>
+          <div id="card-element"></div>
+        </div>
+        <button id="payBtn">Stripe 确认支付（卡支付）</button>
+        <button id="wfPayBtn" type="button" style="margin-top: 8px; background: linear-gradient(to right, #3b82f6, #2563eb);">使用万里汇支付</button>
+        <div class="tip">
+          Stripe 测试卡：5555 5555 5555 4444（万事达）。万里汇将跳转至其收银台完成支付。
+        </div>
+        <div class="status" id="status"></div>
+      </div>
+    </div>
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const orderId = params.get('orderId');
+      const orderIdEl = document.getElementById('orderId');
+      const amountEl = document.getElementById('amount');
+      const descEl = document.getElementById('description');
+      const statusEl = document.getElementById('status');
+      const payBtn = document.getElementById('payBtn');
+
+      if (!orderId) {
+        statusEl.textContent = '缺少 orderId 参数';
+        statusEl.className = 'status error';
+      } else {
+        orderIdEl.textContent = orderId;
+        fetch('/api/orders/' + encodeURIComponent(orderId))
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.error) {
+              statusEl.textContent = data.error;
+              statusEl.className = 'status error';
+              return;
+            }
+            amountEl.textContent = data.amount + ' ' + data.currency.toUpperCase();
+            descEl.textContent = data.description || '无';
+          })
+          .catch(() => {
+            statusEl.textContent = '加载订单失败';
+            statusEl.className = 'status error';
+          });
+      }
+
+      const stripe = Stripe('pk_test_xxx_replace_with_your_publishable_key'); // 替换为你自己的 publishable key
+      const elements = stripe.elements({ mode: 'payment' });
+      const cardElement = elements.create('card', {
+        style: {
+          base: {
+            color: '#e5e7eb',
+            '::placeholder': { color: '#6b7280' },
+            fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            fontSize: '13px'
+          }
+        }
+      });
+      cardElement.mount('#card-element');
+
+      payBtn.addEventListener('click', async () => {
+        if (!orderId) return;
+        payBtn.disabled = true;
+        statusEl.textContent = '正在创建支付意图...';
+        statusEl.className = 'status';
+
+        const res = await fetch('/api/payments/create-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          statusEl.textContent = data.error || '创建支付意图失败';
+          statusEl.className = 'status error';
+          payBtn.disabled = false;
+          return;
+        }
+
+        statusEl.textContent = '正在提交银行卡信息...';
+
+        const { clientSecret } = data;
+        const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+          payment_method: { card: cardElement }
+        });
+
+        if (error) {
+          statusEl.textContent = error.message || '支付失败';
+          statusEl.className = 'status error';
+          payBtn.disabled = false;
+          return;
+        }
+
+        if (paymentIntent && paymentIntent.status === 'succeeded') {
+          statusEl.textContent = '支付成功！';
+          statusEl.className = 'status success';
+        } else {
+          statusEl.textContent = '支付状态：' + (paymentIntent && paymentIntent.status);
+          statusEl.className = 'status';
+        }
+
+        payBtn.disabled = false;
+      });
+
+      document.getElementById('wfPayBtn').addEventListener('click', async () => {
+        if (!orderId) return;
+        const btn = document.getElementById('wfPayBtn');
+        btn.disabled = true;
+        statusEl.textContent = '正在跳转万里汇…';
+        statusEl.className = 'status';
+        try {
+          const r = await fetch('/api/payments/worldfirst/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId })
+          });
+          const d = await r.json();
+          if (d.redirectUrl) {
+            window.location.href = d.redirectUrl;
+            return;
+          }
+          statusEl.textContent = d.error || '万里汇创建失败';
+          statusEl.className = 'status error';
+        } catch (e) {
+          statusEl.textContent = '请求失败';
+          statusEl.className = 'status error';
+        }
+        btn.disabled = false;
+      });
+    </script>
+  </body>
+  </html>
+
